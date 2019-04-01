@@ -34,6 +34,14 @@ define("game", ["require", "exports"], function (require, exports) {
                 this.y = this.y / mag;
             }
         };
+        Vec.prototype.rotate = function (origin, radians) {
+            this.sub(origin);
+            var rx = this.x * Math.cos(radians) - this.y * Math.sin(radians);
+            var ry = this.y * Math.cos(radians) + this.x * Math.sin(radians);
+            this.x = rx;
+            this.y = ry;
+            this.add(origin);
+        };
         Vec.prototype.copy = function () {
             return new Vec(this.x, this.y);
         };
@@ -47,30 +55,48 @@ define("game", ["require", "exports"], function (require, exports) {
             this.points.push(new Vec(x + width, y + height));
             this.points.push(new Vec(x, y + height));
         }
-        Rect.prototype.addVec = function (vec) {
+        Rect.prototype.rotate = function (origin, radians) {
             for (var _i = 0, _a = this.points; _i < _a.length; _i++) {
                 var point = _a[_i];
-                point.add(vec);
+                point.rotate(origin, radians);
             }
         };
         return Rect;
     }());
     var Entity = /** @class */ (function () {
         function Entity() {
-            this.rect = new Rect(0, 0, 40, 40);
-            this.paint = new Paint(new Color(255, 255, 255, 1), new Color(255, 255, 255, 1), 1);
+            this.radians = 0;
+            this.width = 40;
+            this.height = 40;
+            this.offset = new Vec(this.width / 2, this.height / 2);
+            this.position = new Vec(view_width / 2, view_height / 2);
             this.velocity = new Vec(0, 0);
             this.acceleration = new Vec(0, 0);
-            this.mass = 10.0;
+            this.mass = 1;
+            this.paint = new Paint(new Color(255, 255, 255, 1), new Color(255, 255, 255, 1), 1);
         }
+        Entity.prototype.lookAt = function (x, y) {
+            this.radians = Math.atan2(y - this.position.y, x - this.position.x);
+        };
         Entity.prototype.applyForce = function (force) {
             force.scal(1 / this.mass);
             this.acceleration.add(force);
         };
         Entity.prototype.update = function () {
             this.velocity.add(this.acceleration);
-            this.rect.addVec(this.velocity);
+            this.position.add(this.velocity);
             this.acceleration.scal(0);
+        };
+        Entity.prototype.makeRect = function () {
+            var x = this.position.x - this.offset.x;
+            var y = this.position.y - this.offset.y;
+            var rect = new Rect(x, y, this.width, this.height);
+            rect.rotate(this.position, this.radians);
+            return rect;
+        };
+        Entity.prototype.draw = function (canvas) {
+            var rect = this.makeRect();
+            canvas.drawRect(rect, this.paint);
         };
         return Entity;
     }());
@@ -132,7 +158,7 @@ define("game", ["require", "exports"], function (require, exports) {
         function TestScene() {
             this.player = new Entity();
             this.player_acc = 4;
-            this.friction_coef = 0.3;
+            this.friction_coef = 0.08;
             this.drag_coef = 0.05;
         }
         TestScene.prototype.update = function (input, delta) {
@@ -161,10 +187,11 @@ define("game", ["require", "exports"], function (require, exports) {
             friction.scal(this.friction_coef);
             this.player.applyForce(friction);
             this.player.update();
+            this.player.lookAt(input.mouse_x, input.mouse_y);
         };
         TestScene.prototype.render = function (canvas) {
             canvas.clear();
-            canvas.drawRect(this.player.rect, this.player.paint);
+            this.player.draw(canvas);
         };
         return TestScene;
     }());

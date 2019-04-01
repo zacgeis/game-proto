@@ -42,6 +42,15 @@ class Vec {
     }
   }
 
+  rotate(origin: Vec, radians: number) {
+    this.sub(origin);
+    let rx = this.x * Math.cos(radians) - this.y * Math.sin(radians);
+    let ry = this.y * Math.cos(radians) + this.x * Math.sin(radians);
+    this.x = rx;
+    this.y = ry;
+    this.add(origin);
+  }
+
   copy() {
     return new Vec(this.x, this.y);
   }
@@ -58,26 +67,42 @@ class Rect {
     this.points.push(new Vec(x, y + height));
   }
 
-  addVec(vec: Vec) {
+  rotate(origin: Vec, radians: number) {
     for (let point of this.points) {
-      point.add(vec);
+      point.rotate(origin, radians);
     }
   }
 }
 
 class Entity {
-  rect: Rect;
-  paint: Paint;
+  radians: number;
+  width: number;
+  height: number;
+
+  offset: Vec;
+  position: Vec;
   velocity: Vec;
   acceleration: Vec;
   mass: number;
 
+  paint: Paint;
+
   constructor() {
-    this.rect = new Rect(0, 0, 40, 40);
-    this.paint = new Paint(new Color(255, 255, 255, 1), new Color(255, 255, 255, 1), 1);
+    this.radians = 0;
+    this.width = 40;
+    this.height = 40;
+
+    this.offset = new Vec(this.width / 2, this.height / 2);
+    this.position = new Vec(view_width / 2, view_height / 2);
     this.velocity = new Vec(0, 0);
     this.acceleration = new Vec(0, 0);
-    this.mass = 10.0;
+    this.mass = 1;
+
+    this.paint = new Paint(new Color(255, 255, 255, 1), new Color(255, 255, 255, 1), 1);
+  }
+
+  lookAt(x: number, y: number) {
+    this.radians = Math.atan2(y - this.position.y, x - this.position.x);
   }
 
   applyForce(force: Vec) {
@@ -87,8 +112,21 @@ class Entity {
 
   update() {
     this.velocity.add(this.acceleration);
-    this.rect.addVec(this.velocity);
+    this.position.add(this.velocity);
     this.acceleration.scal(0);
+  }
+
+  makeRect() {
+    let x = this.position.x - this.offset.x;
+    let y = this.position.y - this.offset.y;
+    let rect = new Rect(x, y, this.width, this.height);
+    rect.rotate(this.position, this.radians);
+    return rect;
+  }
+
+  draw(canvas: Canvas) {
+    let rect = this.makeRect();
+    canvas.drawRect(rect, this.paint);
   }
 }
 
@@ -179,7 +217,7 @@ class TestScene implements Scene {
   constructor() {
     this.player = new Entity();
     this.player_acc = 4;
-    this.friction_coef = 0.3;
+    this.friction_coef = 0.08;
     this.drag_coef = 0.05;
   }
 
@@ -212,11 +250,13 @@ class TestScene implements Scene {
     this.player.applyForce(friction);
 
     this.player.update();
+
+    this.player.lookAt(input.mouse_x, input.mouse_y);
   }
 
   render(canvas: Canvas) {
     canvas.clear();
-    canvas.drawRect(this.player.rect, this.player.paint);
+    this.player.draw(canvas);
   }
 }
 
